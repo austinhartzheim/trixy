@@ -4,18 +4,16 @@ state). The Trixy module allows that to be done through a simple interface.
 Simply create a trixy server with a handler that does what is desired. Here is
 an example that tunnels unmodified data to a remote host:
 
-#! /usr/bin/env python3
-import asyncore
-import trixy
+  #! /usr/bin/env python3
+  import asyncore
+  import trixy
+  
+  
+  class TrixyTunnel(trixy.SimpleTunnel):
+      def initiate(self):
+          # Determine which host to connect to
+          self.remote(('austinhartzheim.me', 80))  # Tunnel to this web server
 
-
-class TrixyTunnel(trixy.SimpleTunnel):
-
-    def initiate(self):
-        # Determine which host to connect to
-        self.remote(('austinhartzheim.me', 80))  # Tunnel to this web server
-
-
-# Run the tunnel from a port on localhost
-server = trixy.TrixyProxyServer(TrixyTunnel, 'localhost', 80)
-asyncore.loop()
+  # Run the tunnel from a port on localhost
+  server = trixy.TrixyProxyServer(TrixyTunnel, 'localhost', 80)
+  asyncore.loop()
