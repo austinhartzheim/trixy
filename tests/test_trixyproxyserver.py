@@ -36,5 +36,5 @@ class Test(utils.TestCase):
         sock.close()
 
 
-# if __name__ == "__main__":
-#    unittest.main()
+if __name__ == '__main__':
+    unittest.main()

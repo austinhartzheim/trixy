@@ -27,6 +27,7 @@ class TrixyProxyServer(asyncore.dispatcher):
     '''
     Main server for the Trixy proxy. It binds a port and listens there.
     '''
+
     def __init__(self, handler, host, port):
         asyncore.dispatcher.__init__(self)
         self.handler = handler
@@ -52,11 +53,15 @@ class TrixyProxyOutbound(asyncore.dispatcher_with_send):
 
         self.listener = None  # Remote listener object
 
+    def handle_close(self):
+        if self.listener:
+            self.listener.close()
+        self.close()
+
     def handle_read(self):
         self.listener.send(self.recv(16384))
 
     def link(self, listener):
-        print('linked with listener')  # TODO: remove debug
         self.listener = listener
 
     def remote(self, addr, family=socket.AF_INET, type=socket.SOCK_STREAM):
@@ -91,6 +96,7 @@ class TrixyProxy(asyncore.dispatcher_with_send):
         raise Exception('Must be implemented by child proxy')
 
     def handle_close(self):
+        self.output.handle_close()
         self.close()
 
     def initiate(self):
@@ -112,7 +118,6 @@ class TrixyProxy(asyncore.dispatcher_with_send):
 class TrixyTunnel(TrixyProxy, asyncore.dispatcher_with_send):
     def handle_read(self):
         data = self.recv(16384)
-        print('in data: ' + data.decode())
         self.output.send(data)
 
     def initiate(self):

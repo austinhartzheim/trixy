@@ -38,15 +38,10 @@ class Test(utils.TestCase):
         Test that TrixyProxyOutbound is properly making connections to
         external services.
         '''
-        print(self.server)
-        print(self.server.handler)
-
         sock1 = socket.socket()
         sock2 = socket.socket()
         sock1.connect((SRV_HOST, SRV_PORT))
         sock2.connect((SRV_HOST, SRV_PORT))
-
-        # print(self.server.handler.listener)
 
         listener1 = self.listener.accept()[0]
         sock1.send(b'\x00')
@@ -58,3 +53,8 @@ class Test(utils.TestCase):
 
         sock1.close()
         sock2.close()
+        listener1.close()
+        listener2.close()
+
+if __name__ == '__main__':
+    unittest.main()
