@@ -4,9 +4,9 @@ Test trixy.TrixyProxyOutbound
 import socket
 import unittest
 import trixy
-import utils
+from tests import utils
 
-from utils import SRV_HOST, SRV_PORT, LOC_HOST, LOC_PORT
+from tests.utils import SRV_HOST, SRV_PORT, LOC_HOST, LOC_PORT
 
 
 class DummyTrixyTunnelWithOutbound(trixy.TrixyTunnel):

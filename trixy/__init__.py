@@ -96,7 +96,8 @@ class TrixyProxy(asyncore.dispatcher_with_send):
         raise Exception('Must be implemented by child proxy')
 
     def handle_close(self):
-        self.output.handle_close()
+        if hasattr(self, 'output'):
+            self.output.handle_close()
         self.close()
 
     def initiate(self):

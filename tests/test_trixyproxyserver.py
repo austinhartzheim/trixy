@@ -4,9 +4,9 @@ Test trixy.TrixyProxyServer
 import socket
 import unittest
 import trixy
-import utils
+from tests import utils
 
-from utils import SRV_HOST, SRV_PORT
+from tests.utils import SRV_HOST, SRV_PORT
 
 
 class Test(utils.TestCase):
