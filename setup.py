@@ -8,6 +8,6 @@ setup(
     packages=['trixy'],
     license='GNU GPL v3',
     description='Python proxy server',
-    long_description=open('README.txt').read(),
+    long_description=open('README.md').read(),
     url='austinhartzheim.me/projects/python3-trixy/'
 )
