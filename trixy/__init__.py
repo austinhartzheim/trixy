@@ -87,7 +87,7 @@ class TrixyNode():
                 node.handle_close()
         elif direction == 'up':
             for node in self.upstream_nodes:
-                node.handle_close()
+                node.handle_close(direction='up')
 
     def handle_packet_down(self, data):
         '''
@@ -202,7 +202,7 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
             self.connect((host, port))
 
     def handle_close(self):
-        super().handle_close()
+        super().handle_close(direction='up')
         self.close()
 
     def handle_read(self):
