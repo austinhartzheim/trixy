@@ -9,7 +9,7 @@ import trixy
 
 class CustomInput(trixy.TrixyInput):
     def __init__(self, sock, addr):
-        super().__init__(sock,addr)
+        super().__init__(sock, addr)
 
         # This output class connects to this hostname/port by default
         output = trixy.TrixyOutput('austinhartzheim.me', 80)

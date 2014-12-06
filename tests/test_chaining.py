@@ -12,13 +12,11 @@ from tests.utils import SRV_HOST, SRV_PORT, LOC_HOST, LOC_PORT
 class DummyOutput(trixy.TrixyOutput):
 
     def handle_packet_down(self, data):
-        print('Data got to the DummyOuptut')
         self.forward_packet_up(data)
 
 
 class DummyInput(trixy.TrixyInput):
     def __init__(self, sock, addr):
-        print('DummyInput created')
         super().__init__(sock, addr)
 
         processor = trixy.TrixyProcessor()
@@ -47,6 +45,6 @@ class Test(utils.TestCase):
         sock.connect((SRV_HOST, SRV_PORT))
 
         sock.send(b'hello world')
-
-        print('Sent data; waiting for it back')
         self.assertEqual(sock.recv(32), b'hello world')
+
+        sock.close()
