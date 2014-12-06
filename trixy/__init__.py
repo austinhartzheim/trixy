@@ -19,108 +19,138 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 '''
 import asyncore
 import asynchat
-import re
 import socket
 
 
-class TrixyProxyServer(asyncore.dispatcher):
+class TrixyNode():
+    def __init__(self):
+        self.downstream_nodes = []
+        self.upstream_nodes = []
+
+    def add_downstream_node(self, node):
+        self.downstream_nodes.append(node)
+
+    def add_upstream_node(self, node):
+        self.upstream_nodes.append(node)
+
+    def connect_node(self, node):
+        '''
+        Create a bidirectional connection between the two nodes with
+        the downstream node being the parameter.
+
+        :param TrixyNode node: The downstream node to create a
+          bidirectional connection to.
+        '''
+        self.add_downstream_node(node)
+        node.add_upstream_node(self)
+
+    def forward_packet_down(self, data):
+        for node in self.downstream_nodes:
+            node.handle_packet_down(data)
+
+    def forward_packet_up(self, data):
+        for node in self.upstream_nodes:
+            node.handle_packet_up(data)
+
+    def handle_close(self, direction='down'):
+        '''
+        The connection has closed on one end. So, shutdown what we are
+        doing and notify the nodes we are connected to.
+
+        :param str direction: 'down' or 'up' depending on if downstream
+          nodes need to be closed, or upstream nodes need to be closed.
+        '''
+        if direction == 'down':
+            for node in self.downstream_nodes:
+                node.handle_close()
+        elif direction == 'up':
+            for node in self.upstream_nodes:
+                node.handle_close()
+
+    def handle_packet_down(self, data):
+        self.forward_packet_down(data)
+
+    def handle_packet_up(self, data):
+        self.forward_packet_up(data)
+
+
+class TrixyServer(asyncore.dispatcher):
     '''
-    Main server for the Trixy proxy. It binds a port and listens there.
+    Main server to grab incoming connections and forward them.
     '''
 
-    def __init__(self, handler, host, port):
-        asyncore.dispatcher.__init__(self)
-        self.handler = handler
+    def __init__(self, tinput, host, port):
+        '''
+        :param TrixyInput tinput: instantiated every time an incoming
+          connection is grabbed.
+        '''
+        super().__init__()
+        self.tinput = tinput
+        self.setup_socket(host, port)
 
+    def setup_socket(self, host, port):
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()
         self.bind((host, port))
-        self.listen(5)
+        self.listen(100)
 
     def handle_accepted(self, sock, addr):
-        handler = self.handler(sock)
+        handler = self.tinput(sock, addr)
 
 
-class TrixyProxyOutbound(asyncore.dispatcher_with_send):
+class TrixyInput(TrixyNode, asyncore.dispatcher_with_send):
     '''
-    Intermediate class to hold an outbound connection and tunnel the data
-    between a TrixyProxy instance and a remote host.
+    Once a connection is open, establish an output chain.
     '''
-    def __init__(self):
+    def __init__(self, sock, addr):
+        super().__init__()
+        asyncore.dispatcher_with_send.__init__(self, sock)
+
+        self.recvsize = 16384
+
+    def handle_close(self, direction='down'):
+        super().handle_close(direction)
+        self.close()
+
+    def handle_read(self):
+        data = self.recv(self.recvsize)
+        for node in self.downstream_nodes:
+            node.handle_packet_down(data)
+
+    def handle_packet_up(self, data):
+        self.send(data)
+
+
+class TrixyProcessor(TrixyNode):
+    '''
+    Perform processing on data moving through Trixy.
+    '''
+    pass
+
+
+class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
+    '''
+    Output the data, generally to another nextwork service.
+    '''
+    def __init__(self, host, port):
+        super().__init__()
         asyncore.dispatcher_with_send.__init__(self)
-        self.ibuffer = []
-        self.obuffer = b''
 
-        self.listener = None  # Remote listener object
+        self.recvsize = 16384
+
+        self.host = host
+        self.port = port
+
+        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.connect((host, port))
 
     def handle_close(self):
-        if self.listener:
-            self.listener.close()
+        super().handle_close()
         self.close()
 
     def handle_read(self):
-        self.listener.send(self.recv(16384))
+        data = self.recv(self.recvsize)
+        self.forward_packet_up(data)
 
-    def link(self, listener):
-        self.listener = listener
-
-    def remote(self, addr, family=socket.AF_INET, type=socket.SOCK_STREAM):
-        self.create_socket(family, type)
-        self.connect(addr)
-
-
-class TrixyProxy(asyncore.dispatcher_with_send):
-    '''
-    A base implementation of the asyncore functions needed for the
-    other, child proxies.
-    '''
-    outbound_class = TrixyProxyOutbound
-
-    def __init__(self, sock):
-        self.initiate()
-        asyncore.dispatcher_with_send.__init__(self, sock=sock)
-        self.ibuffer = []
-        self.obuffer = b''
-
-        self.remote_addr = None
-
-    def collect_incomming_data(self, data):
-        self.ibuffer.append(data)
-
-    def remote(self, addr, family=socket.AF_INET, type=socket.SOCK_STREAM):
-        self.output = self.outbound_class()
-        self.output.link(self)
-        self.output.remote(addr)
-
-    def found_terminator(self):
-        raise Exception('Must be implemented by child proxy')
-
-    def handle_close(self):
-        if hasattr(self, 'output'):
-            self.output.handle_close()
-        self.close()
-
-    def initiate(self):
-        '''
-        If the server needs to send data to welcome the client, this is
-        where it should be done. This method is called as soon as the
-        incoming connection is sent to the TrixyProxy child class.
-        '''
-        pass
-
-    def set_destination(self, addr):
-        self.remote_addr = addr
-
-    def block(self):
-        # Run proxy until connection termination
-        raise Exception('Must be implemented by child proxy')
-
-
-class TrixyTunnel(TrixyProxy, asyncore.dispatcher_with_send):
-    def handle_read(self):
-        data = self.recv(16384)
-        self.output.send(data)
-
-    def initiate(self):
-        raise Exception('Must be overridden by subclass')
-        # self.remote(('127.0.0.1', 80))
+    def handle_packet_down(self, data):
+        self.send(data)
