@@ -7,7 +7,7 @@ import trixy
 
 SRV_HOST = '127.1.1.1'  # This is the proxy to connect to
 SRV_PORT = 7943
-LOC_HOST = '127.1.1.1'  # The proxyc onnects to this
+LOC_HOST = '127.1.1.1'  # The proxy connects to this
 LOC_PORT = SRV_PORT + 1
 
 
@@ -27,18 +27,6 @@ class AsyncorePoller(threading.Thread):
 
     def stop(self):
         self.continue_running = False
-
-
-class DummyHandler(trixy.TrixyProxy):
-    '''
-    DummyHandler can act as a handler for TrixyProxyServer, accepting
-    and reading data from the connection. Specific data is sent in
-    response to incoming data to make unit testing posisble.
-    '''
-    def handle_read(self):
-        data = self.recv(32)
-        if data == b'\x00':
-            self.send(b'\x00\x00\x00\x00')
 
 
 class TestCase(unittest.TestCase):

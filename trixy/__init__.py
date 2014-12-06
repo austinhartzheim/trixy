@@ -28,9 +28,21 @@ class TrixyNode():
         self.upstream_nodes = []
 
     def add_downstream_node(self, node):
+        '''
+        Add a one direction downstream link to the node parameter.
+
+        :param TrixyNode node: The downstream node to create a
+          unidirectional link to.
+        '''
         self.downstream_nodes.append(node)
 
     def add_upstream_node(self, node):
+        '''
+        Add a one direction upstream link to the node parameter.
+
+        :param TrixyNode node: The upstream node to create a
+          unidirectional link to.
+        '''
         self.upstream_nodes.append(node)
 
     def connect_node(self, node):
@@ -45,10 +57,20 @@ class TrixyNode():
         node.add_upstream_node(self)
 
     def forward_packet_down(self, data):
+        '''
+        Forward data to all downstream nodes.
+
+        :param bytes data: The data to forward.
+        '''
         for node in self.downstream_nodes:
             node.handle_packet_down(data)
 
     def forward_packet_up(self, data):
+        '''
+        Forward data to all upstream nodes.
+
+        :param bytes data: The data to forward.
+        '''
         for node in self.upstream_nodes:
             node.handle_packet_up(data)
 
@@ -68,9 +90,37 @@ class TrixyNode():
                 node.handle_close()
 
     def handle_packet_down(self, data):
+        '''
+        Hadle data moving downwards. TrixyProcessor children should
+        perform some action on `data` whereas `TrixyOutput` children
+        should send the data to the desired output location.
+
+        Generally, the a child implementation of this method should
+        be implemented such that it calls self.forward_packet_down
+        with the data (post-modification if necessary) to forward the
+        data to other processors in the chain. However, if the
+        processor is a filter, it may drop the packet by omitting that
+        call.
+
+        :param bytes data: The data that is being handled.
+        '''
         self.forward_packet_down(data)
 
     def handle_packet_up(self, data):
+        '''
+        Hadle data moving upwards. TrixyProcessor children should
+        perform some action on `data` whereas `TrixyOutput` children
+        should send the data to the desired output location.
+
+        Generally, the a child implementation of this method should
+        be implemented such that it calls self.forward_packet_down
+        with the data (post-modification if necessary) to forward the
+        data to other processors in the chain. However, if the
+        processor is a filter, it may drop the packet by omitting that
+        call.
+
+        :param bytes data: The data that is being handled.
+        '''
         self.forward_packet_up(data)
 
 
@@ -130,9 +180,15 @@ class TrixyProcessor(TrixyNode):
 
 class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
     '''
-    Output the data, generally to another nextwork service.
+    Output the data, generally to another network service.
     '''
-    def __init__(self, host, port):
+    def __init__(self, host, port, autoconnect=True):
+        '''
+        :param str host: The hostname to connect to.
+        :param int port: The port on the host to connect to.
+        :param bool autoconnect: Should we automatically connect to the
+          host and port when the object is made? (Default: yes.)
+        '''
         super().__init__()
         asyncore.dispatcher_with_send.__init__(self)
 
@@ -142,7 +198,8 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
         self.port = port
 
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.connect((host, port))
+        if autoconnect:
+            self.connect((host, port))
 
     def handle_close(self):
         super().handle_close()
