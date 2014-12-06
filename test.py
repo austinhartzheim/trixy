@@ -12,7 +12,7 @@ WARNING: test.py is deprecated. It might be gone some day because it is
 a real pain to update the lists of tests below. It is much easier to
 just use nosetests which implements test discovery automatically.
 
-So, you should switch to nosetests working.
+So, you should switch to nosetests soon.
 ''')
 
 sys.path.insert(1, 'trixy')  # Load trixy from local src directory
