@@ -9,13 +9,13 @@ from tests import utils
 from tests.utils import SRV_HOST, SRV_PORT, LOC_HOST, LOC_PORT
 
 
-class DummyOutput(trixy.TrixyOutput):
+class TestChainingDummyOutput(trixy.TrixyOutput):
 
     def handle_packet_down(self, data):
         self.forward_packet_up(data)
 
 
-class DummyInput(trixy.TrixyInput):
+class TestChainingDummyInput(trixy.TrixyInput):
     def __init__(self, sock, addr):
         super().__init__(sock, addr)
 
@@ -24,17 +24,19 @@ class DummyInput(trixy.TrixyInput):
 
         # Create output, but tell it not to autoconnect. LOC_HOST and LOC_PORT
         #   are just used as place-holders because a connection is never made.
-        output = DummyOutput(LOC_HOST, LOC_PORT, autoconnect=False)
+        output = TestChainingDummyOutput(LOC_HOST, LOC_PORT, autoconnect=False)
         processor.connect_node(output)
 
 
-class Test(utils.TestCase):
+class TestChaining(utils.TestCase):
     def setUp(self):
         super().setUp()
-        server = trixy.TrixyServer(DummyInput, SRV_HOST, SRV_PORT)
+        self.server = trixy.TrixyServer(TestChainingDummyInput, SRV_HOST, SRV_PORT)
 
     def tearDown(self):
         super().tearDown()
+        self.server.close()
+        del self.server
 
     def test_input_output_via_roundtrip(self):
         '''

@@ -24,6 +24,7 @@ class AsyncorePoller(threading.Thread):
         while self.continue_running:
             #  asyncore.poll()
             asyncore.loop(1, count=1)
+        asyncore.close_all()
 
     def stop(self):
         self.continue_running = False
@@ -36,3 +37,10 @@ class TestCase(unittest.TestCase):
 
     def tearDown(self):
         self.async_poller.stop()
+
+        # This is an ugly hack because we use threads. It allows time for
+        #   sockets to close before we run the next test.
+        #   Hopefully this is reliable enough to prevent random failures.
+        # TODO: Fix the above threading issue.
+        import time
+        time.sleep(1)

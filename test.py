@@ -19,6 +19,7 @@ sys.path.insert(1, 'trixy')  # Load trixy from local src directory
 sys.path.insert(1, 'tests')  # Allow tests to be run stand-alone from IDE
 
 from tests.test_chaining import *
+from tests.test_closing import *
 
 
 if __name__ == '__main__':

@@ -141,11 +141,16 @@ class TrixyServer(asyncore.dispatcher):
     def setup_socket(self, host, port):
         self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
         self.set_reuse_addr()
+        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.bind((host, port))
         self.listen(100)
 
     def handle_accepted(self, sock, addr):
         handler = self.tinput(sock, addr)
+
+    def handle_close(self, direction='down'):
+        super().handle_close(direction)
+        self.close()
 
 
 class TrixyInput(TrixyNode, asyncore.dispatcher_with_send):
@@ -201,8 +206,8 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
         if autoconnect:
             self.connect((host, port))
 
-    def handle_close(self):
-        super().handle_close(direction='up')
+    def handle_close(self, direction='up'):
+        super().handle_close(direction)
         self.close()
 
     def handle_read(self):
