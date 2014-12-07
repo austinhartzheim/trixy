@@ -4,7 +4,7 @@ setup(
     name='Trixy',
     author='Austin Hartzheim',
 
-    version='2.0.0',
+    version='2.0.0b0pre',
     packages=['trixy'],
     license='GNU GPL v3',
     description='Python proxy server',
