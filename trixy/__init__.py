@@ -1,28 +1,32 @@
-'''
-Trixy: Create network listeners, tunnels, and outbound connections in a
-modular way allowing interception and modification of the traffic.
+# Trixy: Create network listeners, tunnels, and outbound connections in a
+# modular way allowing interception and modification of the traffic.
+#
+# Copyright (C) 2014  Austin Hartzheim
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-Copyright (C) 2014  Austin Hartzheim
-
-This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU General Public License as published by
-the Free Software Foundation, either version 3 of the License, or
-(at your option) any later version.
-
-This program is distributed in the hope that it will be useful,
-but WITHOUT ANY WARRANTY; without even the implied warranty of
-MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-GNU General Public License for more details.
-
-You should have received a copy of the GNU General Public License
-along with this program.  If not, see <http://www.gnu.org/licenses/>.
-'''
 import asyncore
 import asynchat
 import socket
 
 
 class TrixyNode():
+    '''
+    A base class for TrixyNodes that implements some default packet
+    forwarding and node linking.
+    '''
+
     def __init__(self):
         self.downstream_nodes = []
         self.upstream_nodes = []
@@ -205,6 +209,14 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
         self.setup_socket(host, port, autoconnect)
 
     def setup_socket(self, host, port, autoconnect=True):
+        '''
+        Establish the outbound connection.
+
+        :param str host: The hostname to connect to.
+        :param int port: The port on the hsot to connect to.
+        :param bool autoconnect: Should the connection be established
+          now, or should it be manually triggered later?
+        '''
         addr_info = socket.getaddrinfo(host, port)
         self.create_socket(addr_info[0][0], addr_info[0][1])
         if autoconnect:
