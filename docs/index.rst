@@ -35,7 +35,13 @@ Here are some practical examples of the above:
 * Removing advertising and trackers from webpages.
 * Performing man-in-the-middle attacks.
 
+Other Documentation
+-------------------
 
+If you are stuck, you should also check the following sources for information about Trixy:
+
+* `The developer's website <http://austinhartzheim.me/projects/python3-trixy/>`_
+* `The Github repository <https://github.com/austinhartzheim/Trixy/>`_
 
 Indices and tables
 ==================
