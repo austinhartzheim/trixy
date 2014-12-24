@@ -173,8 +173,7 @@ class TrixyInput(TrixyNode, asyncore.dispatcher_with_send):
 
     def handle_read(self):
         data = self.recv(self.recvsize)
-        for node in self.downstream_nodes:
-            node.handle_packet_down(data)
+        self.handle_packet_down(data)
 
     def handle_packet_up(self, data):
         self.send(data)
@@ -228,7 +227,7 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
 
     def handle_read(self):
         data = self.recv(self.recvsize)
-        self.forward_packet_up(data)
+        self.handle_packet_up(data)
 
     def handle_packet_down(self, data):
         self.send(data)
