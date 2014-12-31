@@ -172,4 +172,112 @@ class Socks4aOutput(trixy.TrixyOutput):
 
 
 class Socks5Output(trixy.TrixyOutput):
+    '''
+    Implements the SOCKS5 protocol as defined in RFC1928.
+    '''
+
+    STATE_NONE = 0
+    STATE_WAITING_FOR_SERVER_METHOD_SELECT = 1
+    STATE_WAITING_FOR_BIND_RESPONSE = 251
+    STATE_PROXY_ACTIVE = 255
+
+    IP_TYPE_V4 = 1
+    IP_TYPE_V6 = 4
+    IP_TYPE_DOMAIN = 3
+
+    def __init__(self, host, port, autoconnect=True,
+                 proxyhost='127.0.0.1', proxyport=1080):
+        super().__init__(proxyhost, proxyport, autoconnect)
+        self.dsthost = dsthost = host
+        self.dstport = port
+
+        self.supported_auth_methods = [b'\x00']
+        self.state = self.STATE_NONE
+
+        self.downstream_buffer = b''
+
+        # Check if the given host is an IP address
+        try:
+            self.dsthost_bytes = socket.inet_pton(socket.AF_INET, dsthost)
+            self.ip_type = self.IP_TYPE_V4
+        except socket.error:
+            try:
+                self.dsthost_bytes = socket.inet_pton(socket.AF_INET6, dsthost)
+                self.ip_type = self.IP_TYPE_V6
+            except socket.error:
+                self.dsthost_bytes = (bytes((len(dsthost),)) +
+                                      bytes(dsthost, 'ascii'))
+                self.ip_type = self.IP_TYPE_DOMAIN
+
+    def add_supported_auth_method(self, method):
+        if isinstance(method, (int, float)):
+            method = bytes((method,))
+        elif not isinstance(method, bytes):
+            raise TypeError('The supplied method must be a bytes object')
+
+        if len(method) != 1:
+            raise ValueError('The supplied method must be a single byte')
+
+        if method not in self.supported_auth_methods:
+            self.supported_auth_methods.append(method)
+
+    def remove_supported_auth_method(self, method):
+        if isinstance(method, (int, float)):
+            method = bytes((method,))
+        elif not isinstance(method, bytes):
+            raise TypeError('The supplied method must be a bytes object')
+
+        if len(method) != 1:
+            raise ValueError('The supplied method must be a single byte')
+
+        while method in self.supported_auth_methods:
+            index = self.supported_auth_methods.index(method)
+            self.supported_auth_methods.pop(index)
+
+    def handle_connect(self):
+        nummethods = len(self.supported_auth_methods)
+        self.send(struct.pack('!BB%ip' % nummethods, 5, nummethods,
+                              b''.join(self.supported_auth_methods)))
+        self.state = self.STATE_WAITING_FOR_SERVER_METHOD_SELECT
+
+    def handle_packet_down(self, data):
+        if self.state == self.STATE_PROXY_ACTIVE:
+            self.send(data)
+        else:
+            self.downstream_buffer += data
+
+    def handle_packet_up(self, data):
+        if self.state == self.STATE_PROXY_ACTIVE:
+            self.forward_packet_up(data)
+
+        elif self.state == self.STATE_WAITING_FOR_SERVER_METHOD_SELECT:
+            if len(data) == 2 and data.startswith(b'\x05'):
+                selected_auth_method = data[1:2]
+                if selected_auth_method not in self.supported_auth_methods:
+                    # TODO: check the RFC for graceful disconnection approach
+                    raise SocksProtocolError('Server selected bad auth method')
+
+                # Authentication complete; attempt the connection
+                self.send(b'\x05\x01\x00' + bytes((self.ip_type,)) +
+                          self.dsthost_bytes + struct.pack('!H', self.dstport))
+                self.state = self.STATE_WAITING_FOR_BIND_RESPONSE
+
+        elif self.state == self.STATE_WAITING_FOR_BIND_RESPONSE:
+            if len(data) > 7 and data.startswith(b'\x05'):
+                response = data[1]
+                if response == 0:  # Success
+                    self.state = self.STATE_PROXY_ACTIVE
+                    self.send(self.downstream_buffer)
+                elif response < 9:
+                    self.handle_close()
+                else:
+                    SocksProtocolError('Unassigned bind response used')
+
+
+class SocksProtocolError(Exception):
+    '''
+    Someone sent some invalid data on the wire, and this is how to deal
+    with it.
+    '''
     pass
+
