@@ -161,6 +161,8 @@ class Socks4aInput(Socks4Input):
 class Socks5Input(trixy.TrixyInput):
 
     STATE_WAITING_FOR_METHODS = 0
+    STATE_WAITING_FOR_AUTH = 1
+    STATE_WAITING_FOR_REQUEST = 2
     STATE_PROXY_ACTIVE = 255
 
     SUPPORTED_METHODS = [b'\x00']
@@ -170,8 +172,13 @@ class Socks5Input(trixy.TrixyInput):
         self.state = self.STATE_WAITING_FOR_METHODS
         print('s5in made')
 
+    def send(self, data):
+        super().send(data)
+        print('u:', data)
+
     def handle_packet_down(self, data):
-        if self.state == sef.STATE_PROXY_ACTIVE:
+        print('d:', data)
+        if self.state == self.STATE_PROXY_ACTIVE:
             self.forward_packet_down(data)
 
         elif self.state == self.STATE_WAITING_FOR_METHODS:
@@ -187,15 +194,42 @@ class Socks5Input(trixy.TrixyInput):
                     methods = methods[0:nmethods]
                 self.handle_method_select(methods)
 
+        elif self.state == self.STATE_WAITING_FOR_REQUEST:
+            if not data.startswith(b'\x05'):  # Invalid
+                self.close()  # Disconnect
+                return
+
+            if data[1] == 0x01:  # CONNECT request
+                if data[3] == 0x01:  # IPv4 address
+                    dst_addr = socket.inet_ntoa(data[4:8])
+                    port = struct.unpack('!H', data[8:10])[0]
+                elif data[3] == 0x03:  # Domain name
+                    dst_addr_len = data[4]
+                    dst_addr = data[5:5 + dst_addr_len].decode('ascii')
+                    port = data[5 + dst_addr_len:7 + dst_addr_len]
+                    port = struct.unpack('!H', port)[0]
+                elif data[3] == 0x04:  # IPv6 address
+                    dst_addr = socket.inet_ntop(socket.AF_INET6, data[4:20])
+                    port = struct.unpack('!H', data[20:22])[0]
+                else:
+                    self.close()  # Disconnect
+                    return
+
+                self.handle_connect_request(dst_addr, port, data[3:4])
+
+            else:
+                self.close()  # Disconnect
+                return
+
     def handle_method_select(self, methods):
         for method in self.SUPPORTED_METHODS:
             if method in methods:
                 self.reply_method(method)
+                self.state = self.STATE_WAITING_FOR_REQUEST
             else:
-                pass  # TODO: handle unsupported method
+                self.close()  # Disconnect
 
-
-    def handle_connect_request(self, addr, port, userid):
+    def handle_connect_request(self, addr, port, addrtype):
         '''
         The application connecting to this SOCKS4 input has requested
         that a connection be made to a remote host. At this point, that
@@ -207,7 +241,29 @@ class Socks5Input(trixy.TrixyInput):
 
         # TODO: need functionality to detect if the connection fails to
         #   notify the application accordingly.
-        self.reply_request_granted(addr, port)
+        self.reply_request_granted(addr, port, addrtype)
+        self.state = self.STATE_PROXY_ACTIVE
+
+    def reply_request_granted(self, addr, port, addrtype):
+        '''
+        Send a reply stating that the connection or bind request has
+        been granted and that the connection or bind attempt was
+        successfully completed.
+        '''
+        pkt = b'\x05\x00\x00' + addrtype
+        if addrtype == b'\x01':  # IPv4
+            pkt += socket.inet_aton(addr)
+            print('ws:', socket.inet_aton(addr))  # TODO: remove debug
+        elif addrtype == b'\x03':  # Domain name
+            pkt += bytes((len(addr),))
+            pkt += addr.encode('ascii')
+        elif addrtype == b'\x04':  # IPv6
+            pkt += socket.inet_pton(socket.AF_INET6, addr)
+        else:
+            print(' Unknown addr type:', addrtype)  # TODO: remove debug
+        pkt += struct.pack('!H', port)
+
+        self.send(pkt)
 
     def reply_method(self, method):
         self.send(b'\x05' + method)
