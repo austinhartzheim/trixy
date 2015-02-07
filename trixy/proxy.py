@@ -159,6 +159,10 @@ class Socks4aInput(Socks4Input):
 
 
 class Socks5Input(trixy.TrixyInput):
+    '''
+    Implements the SOCKS5 protocol as defined in RFC1928. At present,
+    only CONNECT requests are supported.
+    '''
 
     STATE_WAITING_FOR_METHODS = 0
     STATE_WAITING_FOR_AUTH = 1
@@ -170,14 +174,8 @@ class Socks5Input(trixy.TrixyInput):
     def __init__(self, sock, addr):
         super().__init__(sock, addr)
         self.state = self.STATE_WAITING_FOR_METHODS
-        print('s5in made')
-
-    def send(self, data):
-        super().send(data)
-        print('u:', data)
 
     def handle_packet_down(self, data):
-        print('d:', data)
         if self.state == self.STATE_PROXY_ACTIVE:
             self.forward_packet_down(data)
 
@@ -212,7 +210,7 @@ class Socks5Input(trixy.TrixyInput):
                     dst_addr = socket.inet_ntop(socket.AF_INET6, data[4:20])
                     port = struct.unpack('!H', data[20:22])[0]
                 else:
-                    self.close()  # Disconnect
+                    self.close()  # Disconnect; unsupported address type
                     return
 
                 self.handle_connect_request(dst_addr, port, data[3:4])
@@ -222,6 +220,12 @@ class Socks5Input(trixy.TrixyInput):
                 return
 
     def handle_method_select(self, methods):
+        '''
+        Select the preferred authentication method from the list of
+        client-supplied supported methods. The byte object of length
+        one should be sent to self.reply_method to notify the client
+        of the method selection.
+        '''
         for method in self.SUPPORTED_METHODS:
             if method in methods:
                 self.reply_method(method)
@@ -253,19 +257,24 @@ class Socks5Input(trixy.TrixyInput):
         pkt = b'\x05\x00\x00' + addrtype
         if addrtype == b'\x01':  # IPv4
             pkt += socket.inet_aton(addr)
-            print('ws:', socket.inet_aton(addr))  # TODO: remove debug
         elif addrtype == b'\x03':  # Domain name
             pkt += bytes((len(addr),))
             pkt += addr.encode('ascii')
         elif addrtype == b'\x04':  # IPv6
             pkt += socket.inet_pton(socket.AF_INET6, addr)
         else:
-            print(' Unknown addr type:', addrtype)  # TODO: remove debug
+            raise Exception('Invalid address mode given')
+
         pkt += struct.pack('!H', port)
 
         self.send(pkt)
 
     def reply_method(self, method):
+        '''
+        Send a reply to the user letting them know which authentication
+        method the server has selected. If the method 0xff is selected,
+        close the connection because no method is supported.
+        '''
         self.send(b'\x05' + method)
         if method == b'\xff':
             self.handle_close()
