@@ -20,6 +20,7 @@ sys.path.insert(1, 'tests')  # Allow tests to be run stand-alone from IDE
 
 from tests.test_chaining import *
 from tests.test_closing import *
+from tests.test_proxy import *
 
 
 if __name__ == '__main__':

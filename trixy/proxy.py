@@ -70,7 +70,7 @@ class Socks4Input(trixy.TrixyInput):
         successfully completed.
         '''
         # 90 is the response for a granted request
-        self.send(struct.pack('!BBH4p', 0x00, 90, port,
+        self.send(struct.pack('!BBH4s', 0x00, 90, port,
                               socket.inet_aton(addr)))
 
     def reply_request_failed(self, addr, port):
@@ -81,7 +81,7 @@ class Socks4Input(trixy.TrixyInput):
         or the requested port could not be bound).
         '''
         # 91 is the response for a rejected or failed request
-        self.send(struct.pack('!BBH4p', 0x00, 91, port,
+        self.send(struct.pack('!BBH4s', 0x00, 91, port,
                               socket.inet_aton(addr)))
 
     def reply_request_rejected(self, addr, port):
@@ -91,7 +91,7 @@ class Socks4Input(trixy.TrixyInput):
         '''
         # 92 is the response for a request being rejected because the SOCKS
         #   server cannot connect to identd on the client.
-        self.send(struct.pack('!!BBH4p', 0x00, 92, port,
+        self.send(struct.pack('!BBH4s', 0x00, 92, port,
                               socket.inet_aton(addr)))
 
     def reply_request_rejected_id_mismatch(self, addr, port):
@@ -102,7 +102,7 @@ class Socks4Input(trixy.TrixyInput):
         '''
         # 93 is the response for rejections due to the client program and
         #   identd reporting different user-ids.
-        self.send(struct.pack('!!BBH4p', 0x00, 93, port,
+        self.send(struct.pack('!BBH4s', 0x00, 93, port,
                               socket.inet_aton(addr)))
 
 
@@ -135,7 +135,6 @@ class Socks4aInput(Socks4Input):
             # TODO: test if the address is invalid, which suggests that
             #   we need to resolve the hostname contained later in the data.
 
-            print('DEBUG: Got SOCKS4 connect request:')
             print('  ', addr, ':', port, ' username: ', userid)
 
             self.handle_connect_request(addr, port, userid)
@@ -160,15 +159,70 @@ class Socks4aInput(Socks4Input):
 
 
 class Socks5Input(trixy.TrixyInput):
-    pass
+
+    STATE_WAITING_FOR_METHODS = 0
+    STATE_PROXY_ACTIVE = 255
+
+    SUPPORTED_METHODS = [b'\x00']
+
+    def __init__(self, sock, addr):
+        super().__init__(sock, addr)
+        self.state = self.STATE_WAITING_FOR_METHODS
+        print('s5in made')
+
+    def handle_packet_down(self, data):
+        if self.state == sef.STATE_PROXY_ACTIVE:
+            self.forward_packet_down(data)
+
+        elif self.state == self.STATE_WAITING_FOR_METHODS:
+            if data.startswith(b'\x05') and len(data) > 2:
+                nmethods = data[1]
+                methods = data[2:]
+
+                # Truncate method list if nmethods smaller, but attempt to
+                # work regardless of a method count and actual count mismatch.
+                # TODO: truncating is fingerpritable; is this desired?
+                #   Is there another implementation to copy?
+                if len(methods) > nmethods:
+                    methods = methods[0:nmethods]
+                self.handle_method_select(methods)
+
+    def handle_method_select(self, methods):
+        for method in self.SUPPORTED_METHODS:
+            if method in methods:
+                self.reply_method(method)
+            else:
+                pass  # TODO: handle unsupported method
+
+
+    def handle_connect_request(self, addr, port, userid):
+        '''
+        The application connecting to this SOCKS4 input has requested
+        that a connection be made to a remote host. At this point, that
+        request can be accepted, modified, or declined.
+
+        The default behavior is to accept the request as-is.
+        '''
+        self.connect_node(trixy.TrixyOutput(addr, port))
+
+        # TODO: need functionality to detect if the connection fails to
+        #   notify the application accordingly.
+        self.reply_request_granted(addr, port)
+
+    def reply_method(self, method):
+        self.send(b'\x05' + method)
+        if method == b'\xff':
+            self.handle_close()
 
 
 class Socks4Output(trixy.TrixyOutput):
-    pass
+    # TODO: implement assumed connections (useful for SOCKS over SSL)
+    supports_assumed_connections = False
 
 
 class Socks4aOutput(trixy.TrixyOutput):
-    pass
+    # TODO: implement assumed connections (useful for SOCKS over SSL)
+    supports_assumed_connections = False
 
 
 class Socks5Output(trixy.TrixyOutput):
@@ -179,11 +233,15 @@ class Socks5Output(trixy.TrixyOutput):
     STATE_NONE = 0
     STATE_WAITING_FOR_SERVER_METHOD_SELECT = 1
     STATE_WAITING_FOR_BIND_RESPONSE = 251
-    STATE_PROXY_ACTIVE = 255
+    STATE_PROXY_ACTIVE = 254
+    STATE_PROXY_DISABLED = 255
 
     IP_TYPE_V4 = 1
     IP_TYPE_V6 = 4
     IP_TYPE_DOMAIN = 3
+
+    # TODO: implement assumed connections (useful for SOCKS over SSL)
+    supports_assumed_connections = False
 
     def __init__(self, host, port, autoconnect=True,
                  proxyhost='127.0.0.1', proxyport=1080):
@@ -247,7 +305,10 @@ class Socks5Output(trixy.TrixyOutput):
             self.downstream_buffer += data
 
     def handle_packet_up(self, data):
-        if self.state == self.STATE_PROXY_ACTIVE:
+        if self.state == self.STATE_PROXY_DISABLED:
+            return
+
+        elif self.state == self.STATE_PROXY_ACTIVE:
             self.forward_packet_up(data)
 
         elif self.state == self.STATE_WAITING_FOR_SERVER_METHOD_SELECT:
@@ -272,6 +333,24 @@ class Socks5Output(trixy.TrixyOutput):
                     self.handle_close()
                 else:
                     SocksProtocolError('Unassigned bind response used')
+
+    def set_state(self, state):
+        old_state = self.state
+        self.state = state
+        self.handle_state_change(oldstate=old_state, newstate=state)
+
+    def handle_state_change(self, oldstate, newstate):
+        '''
+        Be able to process events when they occur. It allows easier
+        detection of when events occur if it is desired to implement
+        different responses. It also allows detection of when the proxy
+        is ready for use and can be used to use assume_connectecd to
+        transfer control to a TrixyOutput.
+
+        :param int oldstate: The old state number.
+        :param int newstate: The new state number.
+        '''
+        pass
 
 
 class SocksProtocolError(Exception):
