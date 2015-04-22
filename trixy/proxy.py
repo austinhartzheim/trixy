@@ -305,6 +305,9 @@ class Socks5Output(trixy.TrixyOutput):
     IP_TYPE_V6 = 4
     IP_TYPE_DOMAIN = 3
 
+    supported_auth_methods = []
+    state = STATE_NONE
+
     # TODO: implement assumed connections (useful for SOCKS over SSL)
     supports_assumed_connections = False
 
@@ -361,10 +364,12 @@ class Socks5Output(trixy.TrixyOutput):
         nummethods = len(self.supported_auth_methods)
         self.send(struct.pack('!BB%ip' % nummethods, 5, nummethods,
                               b''.join(self.supported_auth_methods)))
-        self.state = self.STATE_WAITING_FOR_SERVER_METHOD_SELECT
+        self.set_state(self.STATE_WAITING_FOR_SERVER_METHOD_SELECT)
 
     def handle_packet_down(self, data):
+        print('socks5:', data)
         if self.state == self.STATE_PROXY_ACTIVE:
+            print('socks5-active:', data)
             self.send(data)
         else:
             self.downstream_buffer += data
@@ -386,13 +391,13 @@ class Socks5Output(trixy.TrixyOutput):
                 # Authentication complete; attempt the connection
                 self.send(b'\x05\x01\x00' + bytes((self.ip_type,)) +
                           self.dsthost_bytes + struct.pack('!H', self.dstport))
-                self.state = self.STATE_WAITING_FOR_BIND_RESPONSE
+                self.set_state(self.STATE_WAITING_FOR_BIND_RESPONSE)
 
         elif self.state == self.STATE_WAITING_FOR_BIND_RESPONSE:
             if len(data) > 7 and data.startswith(b'\x05'):
                 response = data[1]
                 if response == 0:  # Success
-                    self.state = self.STATE_PROXY_ACTIVE
+                    self.set_state(self.STATE_PROXY_ACTIVE)
                     self.send(self.downstream_buffer)
                 elif response < 9:
                     self.handle_close()
