@@ -22,6 +22,7 @@ class TrixySSLOutput(trixy.TrixyOutput):
     addition to TLS. If you want to specify different settings, you can
     pass your own context to setup_socket().
     '''
+    supports_assumed_connections = True
     default_protocol = ssl.PROTOCOL_SSLv23
 
     def __init__(self, host, port, autoconnect=True, **kwargs):
@@ -38,7 +39,7 @@ class TrixySSLOutput(trixy.TrixyOutput):
           when the __init__ method is called?
         :param ssl.SSLContext context: this optional parameter allows
           for custom security settings such as certificate verification
-          and alternate SSL/TLS versions upport.
+          and alternate SSL/TLS versions support.
         :param **kwargs: Anything else that should be passed to the
           SSLContext's wrap_socket method.
         '''
@@ -48,6 +49,25 @@ class TrixySSLOutput(trixy.TrixyOutput):
         sock = context.wrap_socket(socket.socket(addr_info[0][0],
                                                  addr_info[0][1]), **kwargs)
         self.set_socket(sock)
+
+    def assume_connected(self, host, port, sock, context=None, **kwargs):
+        '''
+        Assume a connection that is already in progress and encrypt
+        the traffic with a default or provded SSL context.
+
+        :param str host: The hostname the output should connect to.
+        :param int port: The port this output should connect to.
+        :param socket.socket sock: The connected socket object.
+        :param ssl.SSLContext context: this optional parameter allows
+          for custom security settings such as certificate verification
+          and alternate SSL/TLS versions support.
+        :param **kwargs: Anything else that should be passed to the
+          SSLContext's wrap_socket method.
+        '''
+        super().assume_connected(host, port, sock)
+        if not context:
+            context = ssl.SSLContext(self.default_protocol)
+        sock = context.wrap_socket(sock, **kwargs)
 
 
 class TrixyTLSOutput(trixy.TrixyOutput):

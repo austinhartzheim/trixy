@@ -190,6 +190,9 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
     '''
     Output the data, generally to another network service.
     '''
+    #: Denotes whether assumed connections are assumed by the class.
+    supports_assumed_connections = True
+
     def __init__(self, host, port, autoconnect=True):
         '''
         :param str host: The hostname to connect to.
@@ -212,7 +215,7 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
         Establish the outbound connection.
 
         :param str host: The hostname to connect to.
-        :param int port: The port on the hsot to connect to.
+        :param int port: The port on the host to connect to.
         :param bool autoconnect: Should the connection be established
           now, or should it be manually triggered later?
         '''
@@ -220,6 +223,22 @@ class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
         self.create_socket(addr_info[0][0], addr_info[0][1])
         if autoconnect:
             self.connect((host, port))
+
+    def assume_connected(self, host, port, sock):
+        '''
+        Assume that the connection has already been made. Setup all
+        state accordingly. This is useful in situations where one
+        output wants to pass off work to a different output (for
+        example, a proxy output might establish the connection and
+        then pass it off to an SSL output (which needs to act on the
+        raw socket object).
+        '''
+        if not self.supports_assumed_connections:
+            raise NotImplementedError('No support for assumed connections')
+
+        self.host = host
+        self.port = port
+        self.set_socket(sock)
 
     def handle_close(self, direction='up'):
         super().handle_close(direction)
