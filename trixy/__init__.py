@@ -1,7 +1,7 @@
 # Trixy: Create network listeners, tunnels, and outbound connections in a
 # modular way allowing interception and modification of the traffic.
 #
-# Copyright (C) 2014  Austin Hartzheim
+# Copyright (C) 2014-2015  Austin Hartzheim
 #
 # This program is free software: you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -16,8 +16,7 @@
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import asyncore
-import asynchat
+import asyncio
 import socket
 
 
@@ -57,8 +56,8 @@ class TrixyNode():
         :param TrixyNode node: The downstream node to create a
           bidirectional connection to.
         '''
-        self.add_downstream_node(node)
-        node.add_upstream_node(self)
+        self.add_upstream_node(node)
+        node.add_downstream_node(self)
 
     def forward_packet_down(self, data):
         '''
@@ -128,55 +127,63 @@ class TrixyNode():
         self.forward_packet_up(data)
 
 
-class TrixyServer(asyncore.dispatcher):
+class TrixyServer(asyncio.Protocol):
     '''
     Main server to grab incoming connections and forward them.
-    '''
 
-    def __init__(self, tinput, host, port):
+    This class is currently not functional.
+    '''
+    # TODO: evaluate if there is a place for a server class or if
+    #  asyncio should be used (loop.create_server) instead.
+
+    def __init__(self, tinput):
         '''
         :param TrixyInput tinput: instantiated every time an incoming
           connection is grabbed.
         '''
         super().__init__()
+        loop = asyncio.get_event_loop()
+        l
         self.tinput = tinput
-        self.setup_socket(host, port)
 
-    def setup_socket(self, host, port):
-        self.create_socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.set_reuse_addr()
-        # self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        self.bind((host, port))
-        self.listen(100)
-
-    def handle_accepted(self, sock, addr):
-        handler = self.tinput(sock, addr)
-
-    def handle_close(self):
-        super().handle_close()
-        self.close()
+    def connection_made(self, transport):
+        # TODO: pass the transport off to a TrixyInput object
+        print('Connection made')
+        loop = asyncio.get_event_loop()
+        #ti = loop.create_server(lambda: self.tinput(), sock=transport)
+        #loop.create_task(ti)
+        ti = self.tinput(transport)
+        loop.create_task(ti)
 
 
-class TrixyInput(TrixyNode, asyncore.dispatcher_with_send):
+class TrixyInput(TrixyNode, asyncio.Protocol):
     '''
     Once a connection is open, establish an output chain.
     '''
-    def __init__(self, sock, addr):
+    #def __init__(self, transport):
+    def __init__(self):
         super().__init__()
-        asyncore.dispatcher_with_send.__init__(self, sock)
+        #self.transport = transport
 
         self.recvsize = 16384
 
     def handle_close(self, direction='down'):
         super().handle_close(direction)
-        self.close()
+        self.transport.close()
 
-    def handle_read(self):
-        data = self.recv(self.recvsize)
-        self.handle_packet_down(data)
+    def handle_packet_down(self, data):
+        self.transport.write(data)
 
-    def handle_packet_up(self, data):
-        self.send(data)
+    def data_received(self, data):
+        print('Input got data:', data)
+        self.handle_packet_up(data)
+
+    def connection_made(self, transport):
+        print('Connection made')
+        self.transport = transport
+
+    def connection_lost(self, ex):
+        self.handle_close('down')
 
 
 class TrixyProcessor(TrixyNode):
@@ -186,67 +193,29 @@ class TrixyProcessor(TrixyNode):
     pass
 
 
-class TrixyOutput(TrixyNode, asyncore.dispatcher_with_send):
+class TrixyOutput(TrixyNode, asyncio.Protocol):
     '''
     Output the data, generally to another network service.
     '''
-    #: Denotes whether assumed connections are assumed by the class.
-    supports_assumed_connections = True
 
-    def __init__(self, host, port, autoconnect=True):
+    def __init__(self, loop):
         '''
-        :param str host: The hostname to connect to.
-        :param int port: The port on the host to connect to.
-        :param bool autoconnect: Should we automatically connect to the
-          host and port when the object is made? (Default: yes.)
+        :param loop: The asyncio event loop.
         '''
         super().__init__()
-        asyncore.dispatcher_with_send.__init__(self)
 
-        self.recvsize = 16384
+        self.loop = loop
+        self.transport = None
 
-        self.host = host
-        self.port = port
-
-        self.setup_socket(host, port, autoconnect)
-
-    def setup_socket(self, host, port, autoconnect=True):
-        '''
-        Establish the outbound connection.
-
-        :param str host: The hostname to connect to.
-        :param int port: The port on the host to connect to.
-        :param bool autoconnect: Should the connection be established
-          now, or should it be manually triggered later?
-        '''
-        addr_info = socket.getaddrinfo(host, port)
-        self.create_socket(addr_info[0][0], addr_info[0][1])
-        if autoconnect:
-            self.connect((host, port))
-
-    def assume_connected(self, host, port, sock):
-        '''
-        Assume that the connection has already been made. Setup all
-        state accordingly. This is useful in situations where one
-        output wants to pass off work to a different output (for
-        example, a proxy output might establish the connection and
-        then pass it off to an SSL output (which needs to act on the
-        raw socket object).
-        '''
-        if not self.supports_assumed_connections:
-            raise NotImplementedError('No support for assumed connections')
-
-        self.host = host
-        self.port = port
-        self.set_socket(sock)
-
-    def handle_close(self, direction='up'):
+    def handle_close(self, direction='down'):
         super().handle_close(direction)
-        self.close()
+        self.transport.close()
 
-    def handle_read(self):
-        data = self.recv(self.recvsize)
-        self.handle_packet_up(data)
+    def made_connection(self, transport):
+        self.transport = transport
 
-    def handle_packet_down(self, data):
-        self.send(data)
+    def data_received(self, data):
+        self.handle_packet_down(data)
+
+    def handle_packet_up(self, data):
+        self.transport.write(data)
