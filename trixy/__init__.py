@@ -127,33 +127,49 @@ class TrixyNode():
         self.forward_packet_up(data)
 
 
-class TrixyServer(asyncio.Protocol):
+class TrixyServer():
     '''
     Main server to grab incoming connections and forward them.
-
-    This class is currently not functional.
     '''
     # TODO: evaluate if there is a place for a server class or if
     #  asyncio should be used (loop.create_server) instead.
 
-    def __init__(self, tinput):
+    def __init__(self, tinput, host, port, loop=None):
         '''
         :param TrixyInput tinput: instantiated every time an incoming
           connection is grabbed.
+        :param str host: the hostname to bind to.
+        :param int port: the port number to bind to.
+        :param loop: you may optionally specify your own event loop.
         '''
         super().__init__()
-        loop = asyncio.get_event_loop()
-        l
-        self.tinput = tinput
+        if not loop:
+            loop = asyncio.get_event_loop()
+        self.loop = loop
 
-    def connection_made(self, transport):
-        # TODO: pass the transport off to a TrixyInput object
-        print('Connection made')
-        loop = asyncio.get_event_loop()
-        #ti = loop.create_server(lambda: self.tinput(), sock=transport)
-        #loop.create_task(ti)
-        ti = self.tinput(transport)
-        loop.create_task(ti)
+        self.tinput = tinput
+        self.host = host
+        self.port = port
+
+        self.managing_loop = False
+
+        coro = self.loop.create_server(lambda: self.tinput(self.loop),
+                                       self.host, self.port)
+        #asyncio.async(coro)
+        self.server = self.loop.run_until_complete(coro)
+
+    def close(self):
+        self.server.close()
+        self.loop.run_until_complete(self.server.wait_closed())
+
+    def run_loop(self):
+        self.managing_loop = True
+        self.loop.run_forever()
+
+    def connectikon_lost(self):
+        self.server.close()
+        self.loop.run_until_complete(self.server.wait_closed())
+        self.loop.close()
 
 
 class TrixyInput(TrixyNode, asyncio.Protocol):
@@ -161,9 +177,10 @@ class TrixyInput(TrixyNode, asyncio.Protocol):
     Once a connection is open, establish an output chain.
     '''
     #def __init__(self, transport):
-    def __init__(self):
+    def __init__(self, loop):
         super().__init__()
         #self.transport = transport
+        self.loop = loop
 
         self.recvsize = 16384
 
@@ -175,11 +192,9 @@ class TrixyInput(TrixyNode, asyncio.Protocol):
         self.transport.write(data)
 
     def data_received(self, data):
-        print('Input got data:', data)
         self.handle_packet_up(data)
 
     def connection_made(self, transport):
-        print('Connection made')
         self.transport = transport
 
     def connection_lost(self, ex):
@@ -211,7 +226,7 @@ class TrixyOutput(TrixyNode, asyncio.Protocol):
         super().handle_close(direction)
         self.transport.close()
 
-    def made_connection(self, transport):
+    def connection_made(self, transport):
         self.transport = transport
 
     def data_received(self, data):
