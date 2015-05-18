@@ -159,10 +159,16 @@ class TrixyServer():
         self.server = self.loop.run_until_complete(coro)
 
     def close(self):
+        '''
+        Shutdown the server.
+        '''
         self.server.close()
         self.loop.run_until_complete(self.server.wait_closed())
 
     def run_loop(self):
+        '''
+        Run the event loop so that the server functions.
+        '''
         self.managing_loop = True
         self.loop.run_forever()
 
