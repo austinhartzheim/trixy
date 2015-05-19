@@ -155,7 +155,6 @@ class TrixyServer():
 
         coro = self.loop.create_server(lambda: self.tinput(self.loop),
                                        self.host, self.port)
-        #asyncio.async(coro)
         self.server = self.loop.run_until_complete(coro)
 
     def close(self):
@@ -182,10 +181,8 @@ class TrixyInput(TrixyNode, asyncio.Protocol):
     '''
     Once a connection is open, establish an output chain.
     '''
-    #def __init__(self, transport):
     def __init__(self, loop):
         super().__init__()
-        #self.transport = transport
         self.loop = loop
 
         self.recvsize = 16384

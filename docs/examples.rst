@@ -15,7 +15,7 @@ Here are some examples of how to use Trixy:
 Passthrough Proxy
 =================
 
-The following code creates a Trixy proxy server on a local port 8080 and then sends the output to austinhartzheim.me on port 80::
+The following code creates a Trixy proxy server on local port 8080 and then sends the output to austinhartzheim.me on port 80::
 
    #! /usr/bin/env python3
    import asyncio
@@ -27,17 +27,16 @@ The following code creates a Trixy proxy server on a local port 8080 and then se
            super().__init__(loop)
    
 	   # Create a connection to austinhartzheim.me, port 80
-           to = trixy.TrixyOutput(loop)
-           coro = loop.create_connection(lambda: to,
-                                         'austinhartzheim.me', 80)
+           out = trixy.TrixyOutput(loop)
+           coro = loop.create_connection(lambda: out, 'austinhartzheim.me', 80)
            asyncio.async(coro)
-           self.connect_node(to)
+           self.connect_node(out)
    
    
    if __name__ == '__main__':
        loop = asyncio.get_event_loop()
        
-       # Run teh Trixy server on localhost, port 8080
+       # Run the Trixy server on localhost, port 8080
        coro = loop.create_server(lambda: CustomInput(loop),
                                  '127.0.0.1', 8080)
        loop.create_task(coro)
