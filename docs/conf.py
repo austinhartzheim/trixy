@@ -54,7 +54,7 @@ master_doc = 'index'
 
 # General information about the project.
 project = 'Trixy'
-copyright = '2014, Austin Hartzheim'
+copyright = '2014-2015, Austin Hartzheim'
 
 # The version info for the project you're documenting, acts as replacement for
 # |version| and |release|, also used in various other places throughout the
@@ -277,7 +277,7 @@ texinfo_documents = [
 epub_title = 'Trixy'
 epub_author = 'Austin Hartzheim'
 epub_publisher = 'Austin Hartzheim'
-epub_copyright = '2014, Austin Hartzheim'
+epub_copyright = '2014-2015, Austin Hartzheim'
 
 # The basename for the epub file. It defaults to the project name.
 #epub_basename = 'Trixy'
