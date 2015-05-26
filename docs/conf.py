@@ -254,7 +254,7 @@ man_pages = [
 #  dir menu entry, description, category)
 texinfo_documents = [
   ('index', 'Trixy', 'Trixy Documentation',
-   'Austin Hartzheim', 'Trixy', 'One line description of project.',
+   'Austin Hartzheim', 'Trixy', 'Protocol routing and reverse engineering.',
    'Miscellaneous'),
 ]
 
