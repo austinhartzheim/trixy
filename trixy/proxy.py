@@ -25,12 +25,13 @@ class Socks4Input(trixy.TrixyInput):
         super().__init__(sock, addr)
         self.first_packet = True
 
-    def handle_packet_down(self, data):
+    def handle_packet_up(self, data):
+        print(data)
         if self.first_packet:
             self.handle_proxy_request(data)
             self.first_packet = False
             return
-        self.forward_packet_down(data)
+        self.forward_packet_up(data)
 
     def handle_proxy_request(self, data):
         '''
@@ -171,13 +172,14 @@ class Socks5Input(trixy.TrixyInput):
 
     SUPPORTED_METHODS = [b'\x00']
 
-    def __init__(self, sock, addr):
-        super().__init__(sock, addr)
+    def __init__(self, loop):
+        super().__init__(loop)
         self.state = self.STATE_WAITING_FOR_METHODS
 
-    def handle_packet_down(self, data):
+    def handle_packet_up(self, data):
+        print(data)
         if self.state == self.STATE_PROXY_ACTIVE:
-            self.forward_packet_down(data)
+            self.forward_packet_up(data)
 
         elif self.state == self.STATE_WAITING_FOR_METHODS:
             if data.startswith(b'\x05') and len(data) > 2:
@@ -241,7 +243,7 @@ class Socks5Input(trixy.TrixyInput):
 
         The default behavior is to accept the request as-is.
         '''
-        self.connect_node(trixy.TrixyOutput(addr, port))
+        self.connect_node(trixy.TrixyOutput(self.loop, addr, port))
 
         # TODO: need functionality to detect if the connection fails to
         #   notify the application accordingly.
@@ -267,7 +269,7 @@ class Socks5Input(trixy.TrixyInput):
 
         pkt += struct.pack('!H', port)
 
-        self.send(pkt)
+        self.transport.write(pkt)
 
     def reply_method(self, method):
         '''
@@ -275,7 +277,7 @@ class Socks5Input(trixy.TrixyInput):
         method the server has selected. If the method 0xff is selected,
         close the connection because no method is supported.
         '''
-        self.send(b'\x05' + method)
+        self.transport.write(b'\x05' + method)
         if method == b'\xff':
             self.handle_close()
 
@@ -320,7 +322,7 @@ class Socks5Output(trixy.TrixyOutput):
         self.supported_auth_methods = [b'\x00']
         self.state = self.STATE_NONE
 
-        self.downstream_buffer = b''
+        self.upstream_buffer = b''
 
         # Check if the given host is an IP address
         try:
@@ -366,20 +368,20 @@ class Socks5Output(trixy.TrixyOutput):
                               b''.join(self.supported_auth_methods)))
         self.set_state(self.STATE_WAITING_FOR_SERVER_METHOD_SELECT)
 
-    def handle_packet_down(self, data):
+    def handle_packet_up(self, data):
         print('socks5:', data)
         if self.state == self.STATE_PROXY_ACTIVE:
             print('socks5-active:', data)
             self.send(data)
         else:
-            self.downstream_buffer += data
+            self.upstream_buffer += data
 
-    def handle_packet_up(self, data):
+    def handle_packet_down(self, data):
         if self.state == self.STATE_PROXY_DISABLED:
             return
 
         elif self.state == self.STATE_PROXY_ACTIVE:
-            self.forward_packet_up(data)
+            self.forward_packet_down(data)
 
         elif self.state == self.STATE_WAITING_FOR_SERVER_METHOD_SELECT:
             if len(data) == 2 and data.startswith(b'\x05'):
@@ -398,7 +400,7 @@ class Socks5Output(trixy.TrixyOutput):
                 response = data[1]
                 if response == 0:  # Success
                     self.set_state(self.STATE_PROXY_ACTIVE)
-                    self.send(self.downstream_buffer)
+                    self.send(self.upstream_buffer)
                 elif response < 9:
                     self.handle_close()
                 else:

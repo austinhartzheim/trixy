@@ -3,7 +3,7 @@ Test to be sure that a close on either end (Input or Output) will
 case the other end of the connection to be closed. In other words,
 test close event propagation in the up and down directions.
 '''
-import asyncore
+import asyncio
 import socket
 import trixy
 from tests import utils
@@ -21,7 +21,11 @@ class TestChainingDummyInput(trixy.TrixyInput):
 class TestClosing(utils.TestCase):
     def setUp(self):
         super().setUp()
-        self.server = trixy.TrixyServer(TestChainingDummyInput, SRV_HOST, SRV_PORT)
+        print('TestClosing: setUp')
+        #self.server = trixy.TrixyServer(TestChainingDummyInput,
+        #                                SRV_HOST, SRV_PORT, loop=self.loop)
+        self.server = trixy.create_server(TestChainingDummyInput,
+                                          SRV_HOST, SRV_PORT, loop=self.loop)
 
         self.rsock = socket.socket()
         self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -33,6 +37,7 @@ class TestClosing(utils.TestCase):
         self.server.close()
         self.rsock.close()
 
+    @utils.asyncio_test
     def test_output_close_propagation(self):
         sock = socket.socket()
         sock.connect((SRV_HOST, SRV_PORT))
@@ -52,7 +57,10 @@ class TestClosing(utils.TestCase):
                           b'so this should cause an error')
         sock.close()
 
+    @utils.asyncio_test
     def test_input_close_propagation(self):
+        reader, writer = yield from asyncio.open_connection(SRV_HOST, SRV_PORT)
+
         sock = socket.socket()
         sock.connect((SRV_HOST, SRV_PORT))
 

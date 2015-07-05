@@ -37,7 +37,8 @@ class TrixyNode():
         :param TrixyNode node: The downstream node to create a
           unidirectional link to.
         '''
-        self.downstream_nodes.append(node)
+        if node not in self.downstream_nodes:
+            self.downstream_nodes.append(node)
 
     def add_upstream_node(self, node):
         '''
@@ -46,7 +47,8 @@ class TrixyNode():
         :param TrixyNode node: The upstream node to create a
           unidirectional link to.
         '''
-        self.upstream_nodes.append(node)
+        if node not in self.upstream_nodes:
+            self.upstream_nodes.append(node)
 
     def connect_node(self, node):
         '''
@@ -215,25 +217,56 @@ class TrixyOutput(TrixyNode, asyncio.Protocol):
     '''
     Output the data, generally to another network service.
     '''
-
-    def __init__(self, loop):
+    def __init__(self, loop, host, port, autoconnect=True):
         '''
         :param loop: The asyncio event loop.
         '''
         super().__init__()
-
         self.loop = loop
+        self.host = host
+        self.port = port
+
+        if autoconnect:
+            self.connect()
+
+    def connect(self):
+        out_helper = TrixyOutputHelper()
+        coro = self.loop.create_connection(lambda: out_helper,
+                                           self.host, self.port)
+        asyncio.async(coro)
+        self.connect_node(out_helper)
+
+
+class TrixyOutputHelper(TrixyNode, asyncio.Protocol):
+    '''
+
+    '''
+    def __init__(self):
+        super().__init__()
         self.transport = None
+        self.out_buffer = []
 
-    def handle_close(self, direction='down'):
-        super().handle_close(direction)
-        self.transport.close()
+    def buffer(self, data):
+        '''
+        Buffer data that cannot be sent yet.
+        '''
+        self.out_buffer.append(data)
 
-    def connection_made(self, transport):
-        self.transport = transport
+    def handle_packet_up(self, data):
+        if self.transport is not None:
+            while self.buffer:  # TODO: use a more intelligent buffer system
+                self.transport.write(self.buffer.pop(0))
+            self.transport.write(data)
+        else:
+            self.buffer(data)
 
     def data_received(self, data):
         self.handle_packet_down(data)
 
-    def handle_packet_up(self, data):
-        self.transport.write(data)
+    def connection_made(self, transport):
+        print('connection made')
+        self.transport = transport
+
+    def handle_close(self, direction='down'):
+        super().handle_close(direction)
+        self.transport.close()

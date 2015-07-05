@@ -12,8 +12,9 @@ from tests.utils import SRV_HOST, SRV_PORT, LOC_HOST, LOC_PORT
 class TestSocks4Input(utils.TestCase):
     def setUp(self):
         super().setUp()
+        print('TestSocks4Input: setUp')
         self.server = trixy.TrixyServer(trixy.proxy.Socks4Input,
-                                        SRV_HOST, SRV_PORT)
+                                        SRV_HOST, SRV_PORT, loop=self.loop)
 
         self.rsock = socket.socket()
         self.rsock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -25,6 +26,7 @@ class TestSocks4Input(utils.TestCase):
         self.server.close()
         self.rsock.close()
 
+    @utils.asyncio_test
     def test_through(self):
         '''
         Test a single connection going all the way through the proxy.
