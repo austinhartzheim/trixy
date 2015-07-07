@@ -244,6 +244,7 @@ class Socks5Input(trixy.TrixyInput):
         The default behavior is to accept the request as-is.
         '''
         self.connect_node(trixy.TrixyOutput(self.loop, addr, port))
+        print('Output creation returned')
 
         # TODO: need functionality to detect if the connection fails to
         #   notify the application accordingly.

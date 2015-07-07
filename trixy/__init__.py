@@ -226,47 +226,42 @@ class TrixyOutput(TrixyNode, asyncio.Protocol):
         self.host = host
         self.port = port
 
+        self.transport = None
+        self.buffer = b''
+
         if autoconnect:
             self.connect()
 
     def connect(self):
+        '''
         out_helper = TrixyOutputHelper()
         coro = self.loop.create_connection(lambda: out_helper,
                                            self.host, self.port)
         asyncio.async(coro)
+        print('connecting to connection helper')  # TODO: remove debug
         self.connect_node(out_helper)
-
-
-class TrixyOutputHelper(TrixyNode, asyncio.Protocol):
-    '''
-
-    '''
-    def __init__(self):
-        super().__init__()
-        self.transport = None
-        self.out_buffer = []
-
-    def buffer(self, data):
         '''
-        Buffer data that cannot be sent yet.
-        '''
-        self.out_buffer.append(data)
+        coro = self.loop.create_connection(lambda: self, self.host, self.port)
+        self.task = asyncio.async(coro)
 
-    def handle_packet_up(self, data):
+    def forward_packet_up(self, data):
+        '''
+        If the transport is connected, send the data onwards; otherwise
+        it will be added to the buffer.
+
+        This method require buffering because data often becomes
+        available immediately for upload, but the transport needs time
+        to connect. (This is especially the case when autoconnect is
+        set to True).
+        '''
         if self.transport is not None:
-            while self.buffer:  # TODO: use a more intelligent buffer system
-                self.transport.write(self.buffer.pop(0))
             self.transport.write(data)
         else:
-            self.buffer(data)
+            self.buffer += data
 
     def data_received(self, data):
-        self.handle_packet_down(data)
+        self.forward_packet_down(data)
 
     def connection_made(self, transport):
-        print('connection made')
         self.transport = transport
-
-    def handle_close(self, direction='down'):
-        super().handle_close(direction)
-        self.transport.close()
+        self.transport.write(self.buffer)
