@@ -2,5 +2,9 @@ language: python
 python:
   - "3.4"
 install:
+  - pip install coveralls
   - python setup.py install
-script: nosetests --cover-package trixy --with-coverage
+script:
+  - nosetests --with-coverage --cover-package trixy
+after_success:
+  - coveralls
