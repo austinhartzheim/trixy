@@ -1,3 +1,4 @@
+import asyncio
 import socket
 import ssl
 import trixy
@@ -8,6 +9,7 @@ class TrixySSLInput(trixy.TrixyInput):
     Acts like a normal TrixyInput, but uses Python's ssl.wrap_socket()
     code to speak the SSL protocol back to applications that expect it.
     '''
+    # TODO: re-write to use asyncio interface
     def __init__(self, sock, addr, **kwargs):
         super().__init__(sock, addr)
         self.socket = ssl.wrap_socket(self.socket, server_side=True, **kwargs)
@@ -22,52 +24,30 @@ class TrixySSLOutput(trixy.TrixyOutput):
     addition to TLS. If you want to specify different settings, you can
     pass your own context to setup_socket().
     '''
+    # TODO: check that a secure cipher is used by default, at least SSLv3
     supports_assumed_connections = True
     default_protocol = ssl.PROTOCOL_SSLv23
 
-    def __init__(self, host, port, autoconnect=True, **kwargs):
-        super().__init__(host, port, autoconnect=False, **kwargs)
+    def __init__(self, loop, host, port, autoconnect=True, **kwargs):
+        super().__init__(loop, host, port, autoconnect=False, **kwargs)
+
+        # Save the SSL Context or create a new one
+        if 'context' in kwargs:
+            self.context = context
+        else:
+            self.context = ssl.SSLContext(self.default_protocol)
 
         if autoconnect:
-            self.connect((host, port))
+            self.connect()
 
-    def setup_socket(self, host, port, autoconnect, context=None, **kwargs):
-        '''
-        :param str host: The hostname the output should connect to.
-        :param int port: The port this output should connect to.
-        :param bool autoconnect: Should the connection be established
-          when the __init__ method is called?
-        :param ssl.SSLContext context: this optional parameter allows
-          for custom security settings such as certificate verification
-          and alternate SSL/TLS versions support.
-        :param **kwargs: Anything else that should be passed to the
-          SSLContext's wrap_socket method.
-        '''
-        addr_info = socket.getaddrinfo(host, port)
-        if not context:
-            context = ssl.SSLContext(self.default_protocol)
-        sock = context.wrap_socket(socket.socket(addr_info[0][0],
-                                                 addr_info[0][1]), **kwargs)
-        self.set_socket(sock)
-
-    def assume_connected(self, host, port, sock, context=None, **kwargs):
-        '''
-        Assume a connection that is already in progress and encrypt
-        the traffic with a default or provded SSL context.
-
-        :param str host: The hostname the output should connect to.
-        :param int port: The port this output should connect to.
-        :param socket.socket sock: The connected socket object.
-        :param ssl.SSLContext context: this optional parameter allows
-          for custom security settings such as certificate verification
-          and alternate SSL/TLS versions support.
-        :param **kwargs: Anything else that should be passed to the
-          SSLContext's wrap_socket method.
-        '''
-        super().assume_connected(host, port, sock)
-        if not context:
-            context = ssl.SSLContext(self.default_protocol)
-        sock = context.wrap_socket(sock, **kwargs)
+    def connect(self):
+        if self.context:
+            coro = self.loop.create_connection(lambda: self, self.host,
+                                           self.port, ssl=self.context)
+        else:
+            coro = self.loop.create_connection(lambda: self, self.host,
+                                               self.port, ssl=True)
+        task = asyncio.async(coro)
 
 
 class TrixyTLSOutput(trixy.TrixyOutput):
@@ -77,4 +57,5 @@ class TrixyTLSOutput(trixy.TrixyOutput):
     downgrade attacks, especially when doing hasty testing rather than
     full development.
     '''
+    # TODO: check that the SSL context is enforced.
     default_protocol = ssl.PROTOCOL_TLSv1  # Allows for TLSv1 and up
