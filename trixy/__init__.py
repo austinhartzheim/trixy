@@ -173,10 +173,11 @@ class TrixyServer():
         self.managing_loop = True
         self.loop.run_forever()
 
-    def connectikon_lost(self):
+    def connection_lost(self):
         self.server.close()
         self.loop.run_until_complete(self.server.wait_closed())
-        self.loop.close()
+        if self.managing_loop:
+            self.loop.close()
 
 
 class TrixyInput(TrixyNode, asyncio.Protocol):
