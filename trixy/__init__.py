@@ -89,7 +89,7 @@ class TrixyNode():
         '''
         if direction == 'down':
             for node in self.downstream_nodes:
-                node.handle_close()
+                node.handle_close(direction='down')
         elif direction == 'up':
             for node in self.upstream_nodes:
                 node.handle_close(direction='up')

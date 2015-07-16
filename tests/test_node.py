@@ -84,3 +84,31 @@ class TestTrixyNode(unittest.TestCase):
 
         for each in upstream:
             each.handle_packet_up.assert_called_with(data)
+
+    def test_handle_close_down(self):
+        '''
+        Test that the handle_close() method propagates changes in the
+        downward direction.
+        '''
+        node = trixy.TrixyNode()
+        child = unittest.mock.MagicMock()
+        node.add_downstream_node(child)
+
+        node.handle_close('down')
+        args, kwargs = child.handle_close.call_args
+        self.assertTrue(args == ('down',) or
+                        ('direction' in kwargs and kwargs['direction'] == 'down'))
+
+    def test_handle_close_up(self):
+        '''
+        Test that the handle_close() method propagates changes in the
+        upnward direction.
+        '''
+        node = trixy.TrixyNode()
+        child = unittest.mock.MagicMock()
+        node.connect_node(child)
+
+        node.handle_close('up')
+        args, kwargs = child.handle_close.call_args
+        self.assertTrue(args == ('up',) or
+                        ('direction' in kwargs and kwargs['direction'] == 'up'))
