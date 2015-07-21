@@ -30,7 +30,7 @@ To use Trixy, you should import it into your Python project and create subclasse
 
    def __init__(self, loop):
        super().__init__(loop)
-       
+
        processor = trixy.TrixyProcessor()
        self.connect_node(processor)
        processor.connect_node(trixy.TrixyOutput(loop, '127.0.0.1', 9999))
@@ -40,7 +40,7 @@ The first line creates a processor node. The default :py:class:`trixy.TrixyProce
 Modifying Data: Custom Processors
 =================================
 
-Trixy is great for simply re-routing data, but its realy power lies in its ability to process the data on the fly. To do this, you need to create a custom :py:class:`trixy.TrixyProcessor` subclass.
+Trixy is great for simply re-routing data, but its real power lies in its ability to process the data on the fly. To do this, you need to create a custom :py:class:`trixy.TrixyProcessor` subclass.
 
 When you are creating your own custom processor, you should modify packets like so::
 
@@ -53,7 +53,7 @@ When you are creating your own custom processor, you should modify packets like 
            # Modify the data variable here
            self.forward_packet_up(data)
 
-The :py:meth:`!handle_packet_down` method is called to process data flowing from the input to the output. The :py:meth:`!handle_packet_up` method is used to process data moving from the output to the input. The calls to the :py:meth:`!forward_packet_down` and :py:meth:`!forward_packet_up` then send the modified data on its way to the next node(s) in the chain.
+The :py:meth:`!handle_packet_down` method is called to process data flowing from the output to the input. The :py:meth:`!handle_packet_up` method is used to process data moving from the input to the output. The calls to the :py:meth:`!forward_packet_down` and :py:meth:`!forward_packet_up` then send the modified data on its way to the next node(s) in the chain.
 
 .. NOTE::
    It is also the case that you can ommit calls to :py:meth:`!forward_packet_down` and :py:meth:`!forward_packet_up` when you want to drop a packet.
