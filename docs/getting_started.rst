@@ -28,9 +28,12 @@ Trixy is structured into four component classes: servers, inputs, outputs, and p
 
 To use Trixy, you should import it into your Python project and create subclasses of :py:class:`trixy.TrixyInput`. Inside the :py:meth:`~__init__` method of the subclass, you should create a chain of nodes which the data should pass through. As an example::
 
-   processor = trixy.TrixyProcessor()
-   self.connect_node(processor)
-   processor.connect_node(trixy.TrixyOutput('127.0.0.1', 9999))
+   def __init__(self, loop):
+       super().__init__(loop)
+       
+       processor = trixy.TrixyProcessor()
+       self.connect_node(processor)
+       processor.connect_node(trixy.TrixyOutput(loop, '127.0.0.1', 9999))
 
 The first line creates a processor node. The default :py:class:`trixy.TrixyProcessor` class does not do anything other than forward the data, so you should create a subclass and override some of its methods to modify its behavior (covered next). The second line connects the input instance with this processor node so that the input will forward the data it gets to the processor. The last line connects the processor node to a :py:class:`trixy.TrixyOutput` instance that is created at the same time. This causes the processor to forward data it gets to the output (after making any modifications). The default output that is used in this case creates a TCP connection to localhost on port 9999 and forwards the data there.
 
