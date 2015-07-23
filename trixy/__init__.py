@@ -216,7 +216,7 @@ class TrixyProcessor(TrixyNode):
 
 class TrixyOutput(TrixyNode, asyncio.Protocol):
     '''
-    Output the data, generally to another network service.
+    Output node; generally to connect to another network service.
     '''
     def __init__(self, loop, host, port, autoconnect=True):
         '''
@@ -235,12 +235,8 @@ class TrixyOutput(TrixyNode, asyncio.Protocol):
 
     def connect(self):
         '''
-        out_helper = TrixyOutputHelper()
-        coro = self.loop.create_connection(lambda: out_helper,
-                                           self.host, self.port)
-        asyncio.async(coro)
-        print('connecting to connection helper')  # TODO: remove debug
-        self.connect_node(out_helper)
+        Connect to the saved hsot and port. This method is commonly
+        called by __init__() when `autoconnect` is enabled.
         '''
         coro = self.loop.create_connection(lambda: self, self.host, self.port)
         self.task = asyncio.async(coro)
@@ -261,8 +257,16 @@ class TrixyOutput(TrixyNode, asyncio.Protocol):
             self.buffer += data
 
     def data_received(self, data):
+        '''
+        Received incoming data; forward it down the chain.
+
+        :param bytes data: a bytes object of the received data.
+        '''
         self.forward_packet_down(data)
 
     def connection_made(self, transport):
+        '''
+        Outbound connection successful; save the transport.
+        '''
         self.transport = transport
         self.transport.write(self.buffer)
