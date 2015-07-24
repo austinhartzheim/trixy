@@ -195,15 +195,28 @@ class TrixyInput(TrixyNode, asyncio.Protocol):
         self.transport.close()
 
     def handle_packet_down(self, data):
+        '''
+        Take a downward-bound packet and forward it to the client.
+        '''
         self.transport.write(data)
 
     def data_received(self, data):
+        '''
+        Received data from the client; forward it up the chain.
+        '''
         self.handle_packet_up(data)
 
     def connection_made(self, transport):
+        '''
+        An incoming connection has been established; save the
+        transport.
+        '''
         self.transport = transport
 
     def connection_lost(self, ex):
+        '''
+        The connection from the client was lost. Close the chain.
+        '''
         self.handle_close('down')
 
 
