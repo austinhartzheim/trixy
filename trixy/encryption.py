@@ -26,14 +26,14 @@ class TrixySSLOutput(trixy.TrixyOutput):
     '''
     # TODO: check that a secure cipher is used by default, at least SSLv3
     supports_assumed_connections = True
-    default_protocol = ssl.PROTOCOL_SSLv23
+    default_protocol = ssl.PROTOCOL_SSLv3
 
     def __init__(self, loop, host, port, autoconnect=True, **kwargs):
         super().__init__(loop, host, port, autoconnect=False, **kwargs)
 
         # Save the SSL Context or create a new one
         if 'context' in kwargs:
-            self.context = context
+            self.context = kwargs['context']
         else:
             self.context = ssl.SSLContext(self.default_protocol)
 
