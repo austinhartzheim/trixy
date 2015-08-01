@@ -50,7 +50,7 @@ class TrixySSLOutput(trixy.TrixyOutput):
         task = asyncio.async(coro)
 
 
-class TrixyTLSOutput(trixy.TrixyOutput):
+class TrixyTLSOutput(TrixySSLOutput):
     '''
     Acts identical to a TrixySSLOutput, but defaults to only accepting
     TLS for security reasons. This makes it slightly easier to prevent
