@@ -24,6 +24,7 @@ Trixy is designed to be used in a variety of situations involving network traffi
 * Develop and test protocol parsers.
 * Monitor applications for suspicious network activity.
 * Sanitize traffic, removing any undesired information.
+* Develop application level firewalls.  
 
 Here are some practical examples of the above:
 
