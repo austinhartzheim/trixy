@@ -155,6 +155,10 @@ class TrixyServer():
 
         self.managing_loop = False
 
+        self.setup_socket()
+
+    def setup_socket(self):
+
         coro = self.loop.create_server(lambda: self.tinput(self.loop),
                                        self.host, self.port)
         self.server = self.loop.run_until_complete(coro)
